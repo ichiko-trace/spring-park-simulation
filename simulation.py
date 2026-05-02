@@ -386,6 +386,35 @@ class Simulation:
         self.agents.append(agent)
         logger.info(f"★ Agent {agent_id}（飼い主）が Step {self.step} に出現しました。位置: {position}")
     
+    def _validate_image_prompts(self, text: str) -> tuple:
+        """【Phase 21】画像プロンプトの品質チェック。(is_valid, violations_list) を返す。"""
+        violations = []
+
+        forbidden = [
+            'woman', 'girl', 'figure', 'silhouette', 'her', 'she', 'face', 'eyes',
+            'beautiful', 'lonely', 'sad', 'rain', 'wet', 'body', 'human', 'person',
+            'camera', 'lens', 'shot',
+        ]
+        text_lower = text.lower()
+        for word in forbidden:
+            if re.search(r'\b' + word + r'\b', text_lower):
+                violations.append(f'FORBIDDEN word: "{word}"')
+
+        # ACT ごとに文を抽出し重複チェック
+        acts = re.findall(r'\[ACT \d+.*?\]\n(.*?)(?=\n\[ACT|\Z)', text, re.DOTALL)
+        seen_sentences = []
+        for i, act_text in enumerate(acts, start=1):
+            sentences = [
+                s.strip() for s in re.split(r'(?<=[.。])\s*', act_text)
+                if s.strip() and len(s.strip()) > 20
+            ]
+            for sent in sentences:
+                if sent in seen_sentences:
+                    violations.append(f'DUPLICATE phrase in ACT {i}: "{sent[:60]}"')
+                seen_sentences.append(sent)
+
+        return (len(violations) == 0, violations)
+
     def _run_image_prompt_generation(self):
         """Step 29: 観測者の全memory + 犬の全reasoningから4枚の画像プロンプトを生成する。
 
@@ -411,12 +440,12 @@ class Simulation:
         observer_text = "\n".join(observer_memos) or "（記録なし）"
         dog_text = "\n".join(dog_pulses) or "（沈黙。）"
 
-        # ── 4枚の画像プロンプト生成プロンプト ──────────────────────
-        prompt = f"""You are a cinematographer-poet who translates raw sensory fragments into cinematic image prompts.
+        # ── 4枚の画像プロンプト生成プロンプト（Phase 19: いち子視覚定義反映）──
+        prompt = f"""You are a cinematographer who compiles raw sensory data into cinematic image prompts.
 
-Below are field notes from a Japanese cherry blossom park, captured over 30 steps by two presences:
-- An observer sitting motionless on a bench, recording what they see (Japanese fragments)
-- A dog whose sensory pulses are also recorded (Japanese fragments)
+Below are field notes from a Japanese cherry blossom park, captured over 30 steps:
+- An observer on a bench, recording what they see (Japanese fragments)
+- A dog whose sensory pulses are recorded (Japanese fragments)
 
 === Observer's Field Notes ===
 {observer_text}
@@ -424,64 +453,111 @@ Below are field notes from a Japanese cherry blossom park, captured over 30 step
 === Dog's Sensory Pulse ===
 {dog_text}
 
-=== Your Task ===
-Create EXACTLY 4 cinematic image prompts in English.
-These 4 prompts form a visual story in 4 acts (起承転結).
+=== The Central Phenomenon (ABSOLUTE RULES — never violate) ===
+There is a presence beneath the cherry tree. It is NOT a person. It is a phenomenon — a dense,
+cold mass where the boundary between matter and air has dissolved.
 
-ACT DEFINITIONS:
-[ACT 1 / 起 / The Arrival of Silence]
-  Subject: A motionless woman beneath a cherry tree. Pure stillness as phenomenon.
-  Draw from: the earliest observer notes. The scene before anything moves.
+Describe it ONLY using these physical terms:
+  - "a dense black absence at the edge of the frame"
+  - "a gravitational density that the landscape bends around"
+  - "the place where the landscape stops — not a body, but a weight"
+  - "a surface that absorbs light, does not reflect it"
+  - "an outline that bleeds into the air at its edges"
+  - "moisture, cold air, and shadow pulled toward a single point"
+
+FORBIDDEN words — ABSOLUTE PROHIBITION, applies to EVERY sentence in ALL 4 prompts:
+  woman, girl, figure, silhouette, her, she, face, eyes,
+  beautiful, lonely, sad, rain, wet, body, human, person,
+  camera, lens, shot, frame reference (no "the camera remains still", no "camera holds").
+
+COMPOSITION LAW: This phenomenon is placed at the extreme edge of the photograph — left or right,
+never center. The center is VOID. The emptiness IS the gravitational field.
+
+DO NOT repeat the same phrase across different ACTs. Each ACT must end with a unique image.
+
+=== Your Task ===
+Create EXACTLY 4 cinematic image prompts in English, forming a visual story in 4 acts.
+
+[ACT 1 / 起 / The Weight Arrives]
+  The dense phenomenon exists beneath the cherry tree, at the far edge of frame.
+  The center is empty. The landscape has stopped at its boundary.
+  Draw from: the earliest observer notes.
 
 [ACT 2 / 承 / The Wild Approaches]
-  Subject: A dog moving north by instinct alone. The first sensory encounter.
-  Draw from: dog's pulses. The smell of cold. The pull toward something unnamed.
+  A dog moves northward by instinct. Cold scent. An unnamed pull.
+  It approaches the edge of the frame where the density waits.
+  Draw from: dog's sensory pulses.
 
-[ACT 3 / 転 / Gravity Crosses]
-  Subject: Two presences in proximity without touching — OR a stranger's voice breaking the silence.
-  Draw from: observer notes near the middle of the sequence. Tension without drama.
+[ACT 3 / 転 / Proximity Without Contact]
+  Two densities occupy the same frame without touching.
+  OR: a third presence enters — a voice, a sound, a disturbance at the frame's far edge.
+  Draw from: middle observer notes. No drama. Only physics.
 
 [ACT 4 / 結 / Dissolution]
-  Subject: Cherry petals fall. All boundaries dissolve. Nothing remains but light.
-  Draw from: the final observer notes. The ending that is also a disappearance.
+  Cherry petals fall. The boundary between the phenomenon and the air finally dissolves.
+  The frame empties. Only light and cold remain.
+  Draw from: final observer notes.
 
-=== Required Style (apply to ALL 4 prompts) ===
-Cinematic 35mm photography, Yugen (profound grace), Wabi-sabi aesthetics, ethereal natural lighting, extreme silence, desaturated palette with warm highlights, shallow depth of field, fine film grain, Japanese park setting, cherry blossom season.
+=== Required Style (ALL 4 prompts) ===
+Cinematic 35mm photography, Yugen, Wabi-sabi, extreme silence, desaturated palette,
+warm highlights on bark and petals only, shallow depth of field, fine film grain,
+Japanese park, cherry blossom season. NO camera movement described.
 
-=== Strict Rules ===
-1. Write in English only.
-2. Each prompt: 2-4 sentences, dense with precise visual detail.
-3. Translate the Japanese fragments into English visual imagery.
-   Examples: "影、重なる。" → "two shadows overlap on the moss-covered stone path"
-             "光、ずれる。" → "light shifts fractionally across the bark of the cherry tree"
-             "犬、止まる。" → "a dog halts mid-step, nose raised toward an invisible threshold"
-4. Use at least ONE translated Japanese fragment per prompt.
-5. NO emotion words. NO narration. Only what the camera sees.
-6. The woman never moves. Never speaks. She is a phenomenon, not a character.
+=== Translation Guide ===
+"影、重なる。" → "two shadows converge on cold stone, neither belonging to anything visible"
+"光、ずれる。" → "light shifts one centimeter across bark — the only movement in the frame"
+"吐息、白い。" → "a faint condensation hangs at the edge of the frame, source unknown"
+"花びら、落下。" → "a single petal drops at a rate too slow for wind to explain"
+Use at least ONE translated fragment per prompt.
 
-=== Output Format (exact — no extra text) ===
-[ACT 1 / 起 / Silence]
-{{image prompt here}}
+=== Output Format (exact) ===
+[ACT 1 / 起 / Weight]
+{{prompt}}
 
 [ACT 2 / 承 / Approach]
-{{image prompt here}}
+{{prompt}}
 
-[ACT 3 / 転 / Friction]
-{{image prompt here}}
+[ACT 3 / 転 / Proximity]
+{{prompt}}
 
 [ACT 4 / 結 / Dissolution]
-{{image prompt here}}
+{{prompt}}
 """
 
-        # ── Low-temperature generation: 整合性優先、ループ防止 ─────────
+        # ── Low-temperature generation with quality guard（最大3回）──────
+        MAX_RETRIES = 3
+        result_text = ""
+        current_prompt = prompt
+
         try:
-            result_text = self.llm_client.generate(
-                prompt,
-                temperature=0.5,
-                max_tokens=800,
-                timeout=600
-            )
-            result_text = self._kintsugi_filter(result_text)
+            for attempt in range(MAX_RETRIES):
+                result_text = self.llm_client.generate(
+                    current_prompt,
+                    temperature=0.5,
+                    max_tokens=800,
+                    timeout=600
+                )
+                result_text = self._kintsugi_filter(result_text)
+
+                valid, violations = self._validate_image_prompts(result_text)
+                if valid:
+                    if attempt > 0:
+                        logger.info("★ 品質チェック通過（試行 %d 回目）", attempt + 1)
+                    break
+
+                logger.warning(
+                    "画像プロンプト品質違反（試行 %d/%d）: %s",
+                    attempt + 1, MAX_RETRIES, violations
+                )
+                if attempt < MAX_RETRIES - 1:
+                    violation_text = "\n".join(f"- {v}" for v in violations)
+                    current_prompt = prompt + (
+                        f"\n\n=== 品質違反が検出されました。以下を必ず修正して再生成せよ ===\n"
+                        f"{violation_text}\n"
+                        "上記の違反を一切含まない、全く新しい4つのプロンプトを生成せよ。\n"
+                    )
+            else:
+                logger.error("画像プロンプト品質チェック %d 回失敗。最後の結果を使用。", MAX_RETRIES)
 
             # output/image_prompts.md に保存
             os.makedirs(self.output_dir, exist_ok=True)

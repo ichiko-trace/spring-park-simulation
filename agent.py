@@ -272,6 +272,35 @@ class Agent:
 """
         return prompt
     
+    def _compute_sensory_data(self, nearby_agents: List['Agent']) -> str:
+        """【Phase 20】感覚的な物理量を計算する。座標の代わりにいち子・犬へ渡す。"""
+        sakura = next((p for p in self.places if p['name'] == 'sakura_tree'), None)
+        if not sakura:
+            return "=== 感覚的な物理量 ===\n（データなし）\n"
+
+        sakura_pos = (sakura['center_x'], sakura['center_y'])
+        dx = self.position[0] - sakura_pos[0]
+        dy = self.position[1] - sakura_pos[1]
+        dist = math.sqrt(dx * dx + dy * dy)
+        max_dist = self.half_space_size * math.sqrt(2)
+        proximity = max(0.0, 1.0 - dist / max_dist)
+
+        scent_levels  = ["ほとんど感じない", "かすかに感じる", "中程度", "強い", "非常に強い"]
+        cold_levels   = ["ぬるい", "やや冷たい", "冷たい", "非常に冷たい"]
+        silence_levels = ["騒がしい", "ざわめき", "静か", "深い静寂"]
+
+        scent   = scent_levels[min(4, int(proximity * 5))]
+        cold    = cold_levels[min(3, int(proximity * 4))]
+        silence_ratio = max(0.0, 1.0 - len(nearby_agents) / max(1, self.num_agents))
+        silence = silence_levels[min(3, int(silence_ratio * 4))]
+
+        return (
+            f"=== 感覚的な物理量 ===\n"
+            f"匂いの強さ: {scent}\n"
+            f"気温の低さ: {cold}\n"
+            f"静寂の密度: {silence}\n"
+        )
+
     def create_decision_prompt(
         self,
         place_status: Optional[Dict],
@@ -281,7 +310,13 @@ class Agent:
         fire_info: Optional[List[Dict]] = None
     ) -> str:
         """Create prompt for LLM action decision (with position information and message content)"""
-        nearby_text = self._build_nearby_agents_context(nearby_agents)
+
+        # 【Phase 20】犬（id=1）・いち子（id=0）は感覚モード。座標・場所情報を与えない。
+        use_sensory_mode = self.id in (0, 1)
+
+        nearby_text = self._build_nearby_agents_context(
+            nearby_agents, include_position=not use_sensory_mode
+        )
         memory_text = self._build_memory_context()
         messages_text = self._build_messages_context()
 
@@ -291,16 +326,14 @@ class Agent:
             current_place_info = next((p for p in self.places if p['name'] == self.current_place), None)
             if current_place_info is None:
                 raise ValueError(f"Agent {self.id} is in place '{self.current_place}' but this place is not found in configuration.")
-        
+
         # Place status - only for agents inside a place
-        # Provide only numerical data (occupancy_rate, agents_in_place, capacity)
         if self.in_place and place_status and current_place_info:
             place_name = current_place_info['name']
             place_type = current_place_info['type']
             agents_in_place = place_status.get('agents_in_place', 0)
             capacity = place_status.get('capacity', 0)
             occupancy_rate = place_status.get('occupancy_rate', 0.0)
-
             place_section_text = (
                 f"\n現在地: {place_type}（{place_name}）"
                 f"\n  ここにいるエージェント数: {agents_in_place}"
@@ -310,27 +343,28 @@ class Agent:
         else:
             place_section_text = ""
 
-        # Build place locations description
-        place_locations = []
-        for place in self.places:
-            place_type = place['type']
-            place_locations.append(
-                f"{place['name']}（{place_type}）: 中心座標({place['center_x']}, {place['center_y']})、"
-                f"X範囲: {place['center_x'] - place['half_size']} ～ {place['center_x'] + place['half_size']}、"
-                f"Y範囲: {place['center_y'] - place['half_size']} ～ {place['center_y'] + place['half_size']}"
-            )
-        place_locations_text = "\n".join(place_locations)
+        fire_section = self._build_fire_section(fire_info)
+        persona_section = f"{self.persona}\n\n" if self.persona else ""
 
-        # Include message that was already decided (sent in Phase 2, used here for action decision context)
         message_section = ""
         if message_to_send:
             message_section = f"\n=== 送信予定のメッセージ ===\n{message_to_send}\n"
 
-        fire_section = self._build_fire_section(fire_info)
+        # 【Phase 20】動機の埋め込み（犬・いち子のみ）
+        if self.id == 1:
+            motivation_section = (
+                "\n【本能的動機】世界には『何か』がある。"
+                "匂いや静けさに導かれ、そこへ向かいたいという本能的な好奇心を持て。\n"
+            )
+        elif self.id == 0:
+            motivation_section = (
+                "\n【存在の意味】あなたの背中は、公園全体の『静寂の貯蔵庫』である。"
+                "あなたがそこにいるだけで、世界は沈黙を受け入れる。\n"
+            )
+        else:
+            motivation_section = ""
 
-        persona_section = f"{self.persona}\n\n" if self.persona else ""
-
-        # エージェントごとにmemoryの役割を定義（f-string構築前に必要）
+        # エージェントごとにmemoryの役割を定義
         if self.id == 0:
             # 【Phase 18】6語ローテーション：固着を防ぎ所作の多様性を生む
             _ichiko_rotation = [
@@ -343,7 +377,7 @@ class Agent:
                 "例：目を伏せる。髪、揺れる。まぶた、しずむ。肩、おちる。指先、止まる。背、かがむ。\n"
             )
         elif self.id == 2:
-            # 【Phase 15】視点のローテーション：ステップ番号で例示語を動的に変更
+            # 【Phase 20/21】観測者の役割：「記録するな、発見せよ」＋前ステップ禁止
             _observer_rotation = [
                 "影、重なる。",
                 "風、吹く。",
@@ -355,16 +389,71 @@ class Agent:
                 "枝、揺れる。",
             ]
             memory_instruction = _observer_rotation[step % len(_observer_rotation)]
+            # 【Phase 21】前ステップの記録を取得して「同じ言葉禁止」を明示
+            import re as _re
+            last_obs_memory = ""
+            if self.memory:
+                last_entry = self.memory[-1]
+                m = _re.search(r'Step \d+: (.+)', last_entry)
+                if m:
+                    last_obs_memory = m.group(1).strip()
+            forbidden_hint = f"\n【禁止】前のステップの断片「{last_obs_memory}」と同じ言葉を使うな。" if last_obs_memory else ""
             memory_override_section = (
-                "\n【重要】「memory」フィールドに、今見た最も印象的な断片を2〜3語の体言止めで1つ書け。"
-                "空欄禁止。過去の記憶と違う言葉を選べ。"
-                "例：影、重なる。風、吹く。光、ずれる。犬、止まる。吐息、白い。足音、遠い。花びら、落下。\n"
+                "\n【使命】あなたは風景の変化を捉えるカメラマンだ。"
+                "このステップで起きた『予期せぬ出来事』や『一瞬の変化』を断片としてすくい上げよ。"
+                "何かを見つけろ——記録するな、発見せよ。"
+                f"{forbidden_hint}"
+                "\n空欄禁止。2〜3語の体言止めで。"
+                f"\n例（ヒント）：{memory_instruction}\n"
             )
         else:
             memory_instruction = "次のステップのために覚えておきたいこと（思考・観察・意図）"
             memory_override_section = ""
 
-        prompt = f"""{persona_section}=== 現在の状態 ===
+        # 感覚モード（犬・いち子）と座標モード（観測者・飼い主）で分岐
+        if use_sensory_mode:
+            sensory_section = self._compute_sensory_data(nearby_agents)
+            prompt = f"""{persona_section}{motivation_section}
+=== 現在の状態 ===
+場所にいる: {"はい" if self.in_place else "いいえ"}
+{"現在地: " + self.current_place if self.in_place else ""}
+{place_section_text}
+{fire_section}
+{sensory_section}
+=== 近くにいるもの ===
+{nearby_text}
+
+=== 過去の記憶 ===
+{memory_text}
+
+=== 受信メッセージ ===
+{messages_text}
+{message_section}=== 利用可能なアクション ===
+- "stay": 現在にとどまる
+- "move" + 方向: "up"（北）、"down"（南）、"left"（西）、"right"（東）
+
+{memory_override_section}
+=== JSONで返答 ===
+{{
+    "action": "move" または "stay",
+    "direction": "up"、"down"、"left"、"right" のいずれか（moveの場合のみ）,
+    "memory": "{memory_instruction}",
+    "reasoning": "いまかんじること（みじかく）"
+}}
+"""
+        else:
+            # 観測者・飼い主は従来通り座標情報を渡す
+            place_locations = []
+            for place in self.places:
+                place_type = place['type']
+                place_locations.append(
+                    f"{place['name']}（{place_type}）: 中心座標({place['center_x']}, {place['center_y']})、"
+                    f"X範囲: {place['center_x'] - place['half_size']} ～ {place['center_x'] + place['half_size']}、"
+                    f"Y範囲: {place['center_y'] - place['half_size']} ～ {place['center_y'] + place['half_size']}"
+                )
+            place_locations_text = "\n".join(place_locations)
+
+            prompt = f"""{persona_section}=== 現在の状態 ===
 位置: ({self.position[0]}, {self.position[1]})
 場所にいる: {"はい" if self.in_place else "いいえ"}
 {"現在地: " + self.current_place if self.in_place else ""}
@@ -434,9 +523,30 @@ class Agent:
         for pat in template_leaks:
             reasoning = re.sub(pat, '', reasoning)
         # 【Phase 18】犬reasoning新汚染パターンを除去
-        reasoning = re.sub(r'\bup\b', '', reasoning)                                               # "up" 単体
-        reasoning = re.sub(r'[^。\n]*へ歩け[。]?', '', reasoning)                                  # "あっちへ歩け。"
-        reasoning = re.sub(r'[【\[](memory|reasoning)[】\]]\s*[：:][^。\n]*', '', reasoning, flags=re.IGNORECASE)  # 【memory】: ラベル
+        reasoning = re.sub(r'\bup\b', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*へ歩け[。]?', '', reasoning)
+        reasoning = re.sub(r'[【\[](memory|reasoning)[】\]]\s*[：:][^。\n]*', '', reasoning, flags=re.IGNORECASE)
+        # 【Phase 19】飼い主登場後の語彙漏れを除去（Step 22以降の混入対策）
+        owner_vocab = [
+            r'おいでよ[。]?', r'帰ろう[。]?', r'こっちだよ[。]?',
+            r'ご飯だよ[。]?', r'どこにいるの[？?。]?',
+        ]
+        for pat in owner_vocab:
+            reasoning = re.sub(pat, '', reasoning)
+        # 【Phase 19】【message】ラベル除去を強化（message も対象に追加）
+        reasoning = re.sub(
+            r'[【\[](memory|reasoning|message)[】\]]\s*[：:][^。\n]*',
+            '', reasoning, flags=re.IGNORECASE
+        )
+        # 【Phase 20】[action]: ラベルと日本語方向翻訳語の除去
+        reasoning = re.sub(r'\[action\]\s*[：:]\s*\S+', '', reasoning)
+        reasoning = re.sub(r'(上方|北方|南方|東方|西方)[へに]?', '', reasoning)
+        reasoning = re.sub(r'(北|南|東|西)[へに](移動|進む|歩く)[。]?', '', reasoning)
+        # 【Phase 21】英語アクション語の完全封印（複合パターンを先に除去してから単語除去）
+        reasoning = re.sub(r'move\s+\S+を選[びます]+[。]?', '', reasoning)  # 「move 上を選びます」等
+        reasoning = re.sub(r'\b(up|down|left|right|move)\b', '', reasoning, flags=re.IGNORECASE)
+        # 【Phase 21】「おいで」短縮形の除去（「おいでよ」はPhase 19で対応済み）
+        reasoning = re.sub(r'おいで[よ]?[。]?', '', reasoning)
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
@@ -460,6 +570,13 @@ class Agent:
         import re
         # 半角英字を除去（英語語幹の混入対策）
         memory = re.sub(r'[a-zA-Z]+', '', memory)
+        # 【Phase 20】いち子のmemoryから「顔」関連語を除去（視覚定義：顔の不在）
+        if self.id == 0:
+            memory = re.sub(r'顔を背に[^。]*[。]?', '', memory)
+            memory = re.sub(r'顔[^。]{0,15}[。]?', '', memory)
+        # 【Phase 21】memory フィールドへの reasoning 漏出を除去（全エージェント共通）
+        memory = re.sub(r'\n\n\(reasoning[：:].*?\)', '', memory, flags=re.DOTALL)
+        memory = re.sub(r'\n\n[^\n]+$', '', memory)  # 改行後の付随テキストを除去
         # 連続する空白を整理
         memory = re.sub(r'\s+', ' ', memory).strip()
         return memory
