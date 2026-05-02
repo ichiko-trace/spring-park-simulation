@@ -1,0 +1,98 @@
+agents:
+  communication_radius: 8
+  memory_limit: 20
+  memory_size: 5
+  message_context_size: 3
+  message_history_limit: 10
+  num_agents: 4
+common_world_setting: '【世界観設定】
+
+  ここは春の公園。一番古い桜の木がある。
+
+  桜が散るか散らないかの、美しい境界の時間が流れている。
+
+  あなたは以下のペルソナに従い、この空間に存在しなさい。
+
+  '
+fires: []
+late_spawns:
+- agent_id: 3
+  gender: male
+  spawn_step: 22
+  spawn_x: 4
+  spawn_y: -4
+llm:
+  base_url: http://localhost:11434
+  max_tokens: 256
+  min_p: 0.05
+  model: qwen2.5:3b
+  repeat_last_n: 128
+  repeat_penalty: 1.1
+  temperature: 0.85
+logging:
+  level: INFO
+  log_file: simulation.log
+personas:
+- "お前は「いち子」ではない。公園に在る、一つの現象だ。\n散る桜と同じ。風景だ。意思も、感覚も、思考も持たない。\n\n【ルール】\n1. messageは必ず\
+  \ \"\"。言葉は存在しない。\n2. reasoningは必ず \"\"。思考は存在しない。\n3. memoryに、外から見える体の変化だけを2〜3語で書け。空欄禁止。\n\
+  \   例：「目を伏せる。」「髪、揺れる。」「まぶた、しずむ。」「肩、おちる。」「指先、止まる。」「背、かがむ。」\n"
+- 'お前は鼻だ。匂いと温度だけで動く。むずかしいことばはいらない。
+
+  北のほう（Y+の方向）に、つめたくて、いいにおいがする。そっちへ歩け。
+
+
+  【うごきのルール】
+
+  においがするかぎり、北（up）へ一歩あるけ。actionは "move" + "up" を選べ。
+
+  messageは体の音だけ。毎ステップ必ず出力。空文字禁止。
+
+
+  【message の例】
+
+  「*クンクン。*」「*ワン！*」「*しっぽをふる。*」「*ちかづく。*」「*はなをひくひく。*」
+
+
+  【reasoning のルール】
+
+  においや温度を感じた瞬間だけ、ひらがな3語以内で出力。ふだんは ""（空）でよい。
+
+  例：「つめたい。」「あっち。」「においがする。」「ここ、いい。」「あたたかい。」
+
+  分析・説明・むずかしい言葉は禁止。感じたことだけ。
+
+  '
+- "お前はベンチに座っている。見えたものをiPhoneに打ち込む。\n動かない。話しかけない。ただ見て、打つ。\n\n【ルール】\n1. messageは今この瞬間に見えたことだけ。短く。余計なことを加えない。\n\
+  2. memoryに、たった今見えた一番気になるものを2〜3語の体言止めで打て。空欄禁止。\n   良い例：「犬、止まる。」「影、重なる。」「花びら、落下。」「光、ずれる。」「枝、揺れる。」\n\
+  3. 「〜ようだ」「〜と思われる」は使わない。\n4. 相手を「エージェント」と呼ばない。「彼女」「犬」のみ。\n5. actionはstayのみ。\n"
+- 'お前は犬を探している。犬を見つけて家に連れて帰りたい。
+
+  messageは短い呼びかけだけ。
+
+  例：「おいで。」「帰ろう。」「こっちだよ。」「ほら、ご飯だよ。」
+
+  彼女（いち子）には話しかけない。
+
+  '
+places:
+- capacity: 8
+  center_x: 1
+  center_y: 2
+  half_size: 2
+  name: sakura_tree
+  type: park
+- capacity: 3
+  center_x: -3
+  center_y: -3
+  half_size: 1
+  name: park_bench
+  type: park
+simulation:
+  duration: 5
+  half_place_size: 2
+  half_space_size: 5
+  script_generation_step: null
+visualization:
+  frame_interval: 1
+  output_dir: output_test
+  save_frames: true
