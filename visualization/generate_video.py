@@ -281,9 +281,9 @@ def draw_frame(fig, step_data: dict, total_steps: int):
         reasoning = r.get("reasoning", "")
         memory = r.get("memory", "")
         rea_lines.append({"text": f"[{agent_name}]", "underline": True})
-        rea_lines.append({"text": f"理由: {reasoning}"})
+        rea_lines.append({"text": f"心の声: {reasoning}"})
         if memory:
-            rea_lines.append({"text": f"記憶: {memory}"})
+            rea_lines.append({"text": f"動作: {memory}"})
         rea_lines.append({"text": ""})  # 空行
 
     if not rea_lines:
