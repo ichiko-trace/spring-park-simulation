@@ -641,6 +641,9 @@ class Agent:
         # 【Phase 21】memory フィールドへの reasoning 漏出を除去（全エージェント共通）
         memory = re.sub(r'\n\n\(reasoning[：:].*?\)', '', memory, flags=re.DOTALL)
         memory = re.sub(r'\n\n[^\n]+$', '', memory)  # 改行後の付随テキストを除去
+        # 【Phase 27】観測者は いち子 の名前を知らない——「彼女」に統一
+        if self.id == 2:
+            memory = memory.replace('いち子', '彼女')
         # 連続する空白を整理
         memory = re.sub(r'\s+', ' ', memory).strip()
         return memory
