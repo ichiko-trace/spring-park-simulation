@@ -763,6 +763,9 @@ Use at least ONE translated fragment per prompt.
                     f"\"{message_content}\""
                 )
                 for other_agent in nearby_agents:
+                    # 【Phase 27】犬（id=1）は観測者（id=2）に話しかけない——本能は名無しの彼女だけを感じる
+                    if agent.id == 1 and other_agent.id == 2:
+                        continue
                     other_agent.receive_message(agent.id, message_content, step=self.step)
                     # Log message to jsonl file
                     self._log_message(
