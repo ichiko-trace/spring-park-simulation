@@ -262,7 +262,7 @@ def main():
             env = os.environ.copy()
             env['PATH'] = '/opt/homebrew/bin:' + env.get('PATH', '')
             result = subprocess.run(
-                [sys.executable, gen_script, output_dir, '-o', video_path, '--fps', '0.5'],
+                [sys.executable, gen_script, output_dir, '-o', video_path, '--fps', '0.333'],
                 env=env
             )
             if result.returncode == 0:
