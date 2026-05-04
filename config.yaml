@@ -4,7 +4,7 @@ agents:
   memory_size: 5
   message_context_size: 3
   message_history_limit: 10
-  num_agents: 4
+  num_agents: 3
 common_world_setting: '【世界観設定】
 
   ここは春の公園。一番古い桜の木がある。
@@ -15,12 +15,7 @@ common_world_setting: '【世界観設定】
 
   '
 fires: []
-late_spawns:
-- agent_id: 3
-  gender: male
-  spawn_step: 22
-  spawn_x: 4
-  spawn_y: -4
+late_spawns: []
 llm:
   base_url: http://localhost:11434
   max_tokens: 256
@@ -69,11 +64,6 @@ personas:
   3. 「〜ようだ」「〜と思われる」は使わない。
   4. 相手を「エージェント」と呼ばない。「彼女」「犬」のみ。
   5. actionはstayのみ。
-- |
-  お前は犬を探している。犬を見つけて家に連れて帰りたい。
-  messageは短い呼びかけだけ。
-  例：「おいで。」「帰ろう。」「こっちだよ。」「ほら、ご飯だよ。」
-  彼女（いち子）には話しかけない。
 places:
 - capacity: 8
   center_x: 0
@@ -92,7 +82,7 @@ simulation:
   half_place_size: 2
   half_space_size: 5
   script_generation_step: 29
-  phase: 22
+  phase: 23
 visualization:
   frame_interval: 1
   output_dir: output

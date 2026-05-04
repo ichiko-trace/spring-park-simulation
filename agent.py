@@ -294,8 +294,9 @@ class Agent:
         silence_ratio = max(0.0, 1.0 - len(nearby_agents) / max(1, self.num_agents))
         silence = silence_levels[min(3, int(silence_ratio * 4))]
 
-        # 【Phase 22】犬（id=1）→ いち子からの温もりを感知
+        # 【Phase 22/23】犬（id=1）→ いち子からの温もりと重さを感知
         warmth_line = ""
+        weight_line = ""
         if self.id == 1:
             ichiko = next((a for a in nearby_agents if a.id == 0), None)
             if ichiko:
@@ -306,6 +307,11 @@ class Agent:
                 warmth_levels = ["感じない", "微かに温かい", "温かい", "包まれる"]
                 warmth = warmth_levels[min(3, int(w_proximity * 4))]
                 warmth_line = f"温もりの感覚: {warmth}\n"
+                # 【Phase 23】重さ——いち子の近くで足が止まる
+                if w_proximity > 0.6:
+                    weight_line = "重さの感覚: 重い。動けない。\n"
+                elif w_proximity > 0.3:
+                    weight_line = "重さの感覚: 重い。\n"
             else:
                 warmth_line = "温もりの感覚: 感じない\n"
 
@@ -315,6 +321,7 @@ class Agent:
             f"気温の低さ: {cold}\n"
             f"静寂の密度: {silence}\n"
             f"{warmth_line}"
+            f"{weight_line}"
         )
 
     def create_decision_prompt(
@@ -366,35 +373,46 @@ class Agent:
         if message_to_send:
             message_section = f"\n=== 送信予定のメッセージ ===\n{message_to_send}\n"
 
-        # 【Phase 22】動機の埋め込み（犬・いち子のみ）
+        # 【Phase 23】動機の埋め込み（犬・いち子のみ）
         if self.id == 1:
             motivation_section = (
-                "\n【野生の感覚】お前は匂いと温度と温もりだけで動く。"
-                "3語以内のひらがなで感じろ。論理・分析・因果関係の言語化は絶対禁止。"
-                "「あたたかい」「においがする」「ここ、いい」——感じたことだけを出力せよ。\n"
+                "\n【野生の感覚と物理的抵抗】お前は匂いと温度と温もりと重さで動く。"
+                "いち子のそばにいる時、足が重くなる。「重い。動けない。」その感覚をreasoningに刻め。"
+                "寄り添うのか、漂うのか——選択はお前の本能に任せる。"
+                "3語以内のひらがなのみ。論理・分析・因果関係は絶対禁止。\n"
             )
         elif self.id == 0:
             motivation_section = (
                 "\n【存在の物理】あなたは『公園の悲しみを吸い込む重力場』である。"
-                "犬が近づいた時、あなたは考えない。"
-                "ただ、温もりを受け入れるように、身体がわずかに反応する。"
-                "その物理変化だけをmemoryに出力せよ。\n"
+                "ただ、身体は動く。考えない——しかし身体は反応する。"
+                "犬が近づく時、桜が散る時、その物理的な摩擦が身体に刻まれる。"
+                "その痕跡だけをmemoryに出力せよ。\n"
             )
         else:
             motivation_section = ""
 
         # エージェントごとにmemoryの役割を定義
         if self.id == 0:
-            # 【Phase 22】6語ローテーション：身体的所作の固着防止
-            _ichiko_rotation = [
-                "目を伏せる。", "髪、揺れる。", "まぶた、しずむ。",
-                "肩、おちる。", "指先、止まる。", "背、かがむ。",
-            ]
-            memory_instruction = _ichiko_rotation[step % len(_ichiko_rotation)]
+            # 【Phase 23】犬との距離で所作のヒントを切り替える（文脈応答型）
+            dog = next((a for a in nearby_agents if a.id == 1), None)
+            if dog:
+                dxd = self.position[0] - dog.position[0]
+                dyd = self.position[1] - dog.position[1]
+                dog_dist = math.sqrt(dxd * dxd + dyd * dyd)
+                if dog_dist < 2:
+                    gesture_hint = "「視線は合わせないが、背中の曲線がわずかに犬の方向へ傾く。」「指先が、空中で静止する。」"
+                elif dog_dist < 4:
+                    gesture_hint = "「指先が、空中で静止する。」「ふわりと肩が落とされる。」"
+                else:
+                    gesture_hint = "「舞い落ちる花びらの軌道を、首の角度だけで追う。」「髪に花が絡まるまま、視線だけを落とす。」"
+            else:
+                gesture_hint = "「舞い落ちる花びらの軌道を、首の角度だけで追う。」「髪に花が絡まるまま、視線だけを落とす。」"
+            memory_instruction = gesture_hint
             memory_override_section = (
-                "\n【所作の記録】「memory」フィールドに、"
-                "外から見える身体の物理変化だけを2〜3語で書け。空欄禁止。内面・思考・感情は一切禁止。"
-                f"\n例（ヒント）：{memory_instruction}\n"
+                "\n【所作の記録】感情語は絶対禁止（悲しい・嬉しい等）。"
+                "あなたは感じない——しかし、身体は動く。"
+                "外から見える物理的な身体変化を1文だけ記せ。空欄禁止。"
+                f"\n例（ヒント）：{gesture_hint}\n"
             )
         elif self.id == 2:
             # 【Phase 20/21】観測者の役割：「記録するな、発見せよ」＋前ステップ禁止
@@ -577,6 +595,10 @@ class Agent:
         # 【Phase 22】指示文漏出の新パターン（Phase 21残存汚染）
         reasoning = re.sub(r'においや温度を感じた瞬間[^。]*[。]?', '', reasoning)
         reasoning = re.sub(r'または stay \[direction\][^\n]*', '', reasoning)
+        # 【Phase 23】全角アスタリスク囲みの除去（犬reasoning残存汚染）
+        reasoning = re.sub(r'＊[^＊]+＊', '', reasoning)
+        # 【Phase 23】「または stay」短縮形の封印
+        reasoning = re.sub(r'または stay[^\n]*', '', reasoning)
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',

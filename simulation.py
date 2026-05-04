@@ -428,6 +428,7 @@ class Simulation:
         observer_memos = []
         dog_pulses = []
 
+        ichiko_gestures = []
         if os.path.exists(memory_file):
             with open(memory_file, 'r', encoding='utf-8') as f:
                 for line in f:
@@ -436,22 +437,28 @@ class Simulation:
                         observer_memos.append(f"Step {r['step']}: {r['memory']}")
                     if r['id'] == 1 and r.get('reasoning'):
                         dog_pulses.append(f"Step {r['step']}: {r['reasoning']}")
+                    if r['id'] == 0 and r.get('memory'):
+                        ichiko_gestures.append(f"Step {r['step']}: {r['memory']}")
 
         observer_text = "\n".join(observer_memos) or "（記録なし）"
         dog_text = "\n".join(dog_pulses) or "（沈黙。）"
+        ichiko_text = "\n".join(ichiko_gestures) or "（不動。）"
 
-        # ── 4枚の画像プロンプト生成プロンプト（Phase 19: いち子視覚定義反映）──
-        prompt = f"""You are a cinematographer who compiles raw sensory data into cinematic image prompts.
+        # ── 4枚の画像プロンプト生成プロンプト（Phase 23: 絵巻物・二者の交差）──
+        prompt = f"""You are a cinematographer. Do NOT create a story. Do NOT create drama.
 
-Below are field notes from a Japanese cherry blossom park, captured over 30 steps:
-- An observer on a bench, recording what they see (Japanese fragments)
-- A dog whose sensory pulses are recorded (Japanese fragments)
+Compile the raw physical data below into 4 cinematic image prompts —
+a single emakimono (picture scroll) recording the passage of light, shadow, and temperature
+across 30 steps. No narrative. No emotion. Only phenomena.
 
-=== Observer's Field Notes ===
+=== Observer's Field Notes (bench, stationary) ===
 {observer_text}
 
 === Dog's Sensory Pulse ===
 {dog_text}
+
+=== いち子's Physical Gestures ===
+{ichiko_text}
 
 === The Central Phenomenon (ABSOLUTE RULES — never violate) ===
 There is a presence beneath the cherry tree. It is NOT a person. It is a phenomenon — a dense,
@@ -476,7 +483,9 @@ never center. The center is VOID. The emptiness IS the gravitational field.
 DO NOT repeat the same phrase across different ACTs. Each ACT must end with a unique image.
 
 === Your Task ===
-Create EXACTLY 4 cinematic image prompts in English, forming a visual story in 4 acts.
+Create EXACTLY 4 cinematic image prompts in English — not a story, but a scroll of phenomena.
+Record only: the passage of light and shadow, the shift of temperature, the proximity of two presences.
+Draw from the gestures, pulses, and observations above. Let the viewer's mind create the meaning.
 
 [ACT 1 / 起 / The Weight Arrives]
   The dense phenomenon exists beneath the cherry tree, at the far edge of frame.
