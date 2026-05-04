@@ -307,11 +307,13 @@ class Agent:
                 warmth_levels = ["感じない", "微かに温かい", "温かい", "包まれる"]
                 warmth = warmth_levels[min(3, int(w_proximity * 4))]
                 warmth_line = f"温もりの感覚: {warmth}\n"
-                # 【Phase 23】重さ——いち子の近くで足が止まる
+                # 【Phase 23/24】重さと安らぎ——いち子の近くで足が止まり、静かになる
                 if w_proximity > 0.6:
                     weight_line = "重さの感覚: 重い。動けない。\n"
+                    weight_line += "安らぎ: 静かだ。ここにいると、静かだ。\n"
                 elif w_proximity > 0.3:
                     weight_line = "重さの感覚: 重い。\n"
+                    weight_line += "安らぎ: 静かだ。\n"
             else:
                 warmth_line = "温もりの感覚: 感じない\n"
 
@@ -373,46 +375,48 @@ class Agent:
         if message_to_send:
             message_section = f"\n=== 送信予定のメッセージ ===\n{message_to_send}\n"
 
-        # 【Phase 23】動機の埋め込み（犬・いち子のみ）
+        # 【Phase 24】動機の埋め込み（犬・いち子のみ）
         if self.id == 1:
             motivation_section = (
-                "\n【野生の感覚と物理的抵抗】お前は匂いと温度と温もりと重さで動く。"
-                "いち子のそばにいる時、足が重くなる。「重い。動けない。」その感覚をreasoningに刻め。"
-                "寄り添うのか、漂うのか——選択はお前の本能に任せる。"
+                "\n【物理的報酬】お前はいち子のそばにいると心地よい。"
+                "温もりと静寂——それは物理的な事実だ。「安らぎ」を感じたらreasoningに刻め。"
+                "心を通わせようとするな。ただ、そこが心地よいという事実に従え。"
                 "3語以内のひらがなのみ。論理・分析・因果関係は絶対禁止。\n"
             )
         elif self.id == 0:
             motivation_section = (
-                "\n【存在の物理】あなたは『公園の悲しみを吸い込む重力場』である。"
-                "ただ、身体は動く。考えない——しかし身体は反応する。"
-                "犬が近づく時、桜が散る時、その物理的な摩擦が身体に刻まれる。"
-                "その痕跡だけをmemoryに出力せよ。\n"
+                "\n【身体の物理】犬が近づく時、桜が散る時、身体が反応する。"
+                "memoryには必ずその瞬間の身体の変化を1文書け。"
+                "感情語は使うな。身体の動きだけが、あなたの言葉だ。\n"
             )
         else:
             motivation_section = ""
 
         # エージェントごとにmemoryの役割を定義
         if self.id == 0:
-            # 【Phase 23】犬との距離で所作のヒントを切り替える（文脈応答型）
+            # 【Phase 24】犬との距離で所作を決定し、強制的に出力させる
             dog = next((a for a in nearby_agents if a.id == 1), None)
             if dog:
                 dxd = self.position[0] - dog.position[0]
                 dyd = self.position[1] - dog.position[1]
                 dog_dist = math.sqrt(dxd * dxd + dyd * dyd)
                 if dog_dist < 2:
-                    gesture_hint = "「視線は合わせないが、背中の曲線がわずかに犬の方向へ傾く。」「指先が、空中で静止する。」"
+                    forced_gesture = "肩がわずかに緩む。"
+                    alt_gestures = "「背中の曲線が、犬の方向へわずかに傾く。」「花びらを払う指先が、静止する。」"
                 elif dog_dist < 4:
-                    gesture_hint = "「指先が、空中で静止する。」「ふわりと肩が落とされる。」"
+                    forced_gesture = "指先が、空中で静止する。"
+                    alt_gestures = "「肩がわずかに緩む。」「まぶた、しずむ。」"
                 else:
-                    gesture_hint = "「舞い落ちる花びらの軌道を、首の角度だけで追う。」「髪に花が絡まるまま、視線だけを落とす。」"
+                    forced_gesture = "舞い落ちる花びらの軌道を、首の角度だけで追う。"
+                    alt_gestures = "「髪に花が絡まるまま、視線だけを落とす。」「背、かがむ。」"
             else:
-                gesture_hint = "「舞い落ちる花びらの軌道を、首の角度だけで追う。」「髪に花が絡まるまま、視線だけを落とす。」"
-            memory_instruction = gesture_hint
+                forced_gesture = "舞い落ちる花びらの軌道を、首の角度だけで追う。"
+                alt_gestures = "「髪に花が絡まるまま、視線だけを落とす。」「肩、おちる。」"
+            memory_instruction = forced_gesture
             memory_override_section = (
-                "\n【所作の記録】感情語は絶対禁止（悲しい・嬉しい等）。"
-                "あなたは感じない——しかし、身体は動く。"
-                "外から見える物理的な身体変化を1文だけ記せ。空欄禁止。"
-                f"\n例（ヒント）：{gesture_hint}\n"
+                f"\n【所作】memoryに必ず次の1文を書け（空欄厳禁）：「{forced_gesture}」\n"
+                f"または：{alt_gestures}\n"
+                "感情語（悲しい・嬉しい等）は絶対禁止。身体の物理変化のみ。\n"
             )
         elif self.id == 2:
             # 【Phase 20/21】観測者の役割：「記録するな、発見せよ」＋前ステップ禁止
@@ -437,8 +441,8 @@ class Agent:
                     last_obs_memory = m.group(1).strip()
             forbidden_hint = f"\n【禁止】前のステップの断片「{last_obs_memory}」と同じ言葉を使うな。" if last_obs_memory else ""
             memory_override_section = (
-                "\n【使命】あなたは風景の変化を捉えるカメラマンだ。"
-                "このステップで起きた『予期せぬ出来事』や『一瞬の変化』を断片としてすくい上げよ。"
+                "\n【使命】彼女（いち子）の所作と犬の動きが【同時に起きた瞬間】を逃すな。"
+                "その交差こそが、この30ステップで最も重要な瞬間だ。"
                 "何かを見つけろ——記録するな、発見せよ。"
                 f"{forbidden_hint}"
                 "\n空欄禁止。2〜3語の体言止めで。"
@@ -599,6 +603,11 @@ class Agent:
         reasoning = re.sub(r'＊[^＊]+＊', '', reasoning)
         # 【Phase 23】「または stay」短縮形の封印
         reasoning = re.sub(r'または stay[^\n]*', '', reasoning)
+        # 【Phase 24】英語混入・人間語の新パターン（Step 20: 「うごかせてくれ。」whispered 空気中）
+        reasoning = re.sub(r'whispered[^\n]*', '', reasoning, flags=re.IGNORECASE)
+        reasoning = re.sub(r'空気中[^\n]*', '', reasoning)
+        # 【Phase 24】日本語の「囁いた」「つぶやいた」等の演技的語尾も封印
+        reasoning = re.sub(r'[^。\n]*(囁いた|つぶやいた|漏らした)[。]?', '', reasoning)
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
