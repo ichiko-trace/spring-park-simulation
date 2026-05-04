@@ -284,16 +284,44 @@
             display: none;
         }
         .step-divider {
-            color: #334155;
-            font-size: 0.78em;
-            font-family: monospace;
-            letter-spacing: 0.04em;
-            padding: 6px 0 4px 0;
-            margin-bottom: 4px;
+            color: #64748b;
+            font-size: 0.8em;
+            font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Georgia', serif;
+            letter-spacing: 0.08em;
+            padding: 8px 0 5px 0;
+            margin-bottom: 6px;
             border-top: 1px solid rgba(255,255,255,0.04);
+            font-style: italic;
         }
         .step-divider:first-child {
             border-top: none;
+        }
+        /* 散華の構造: 降り積もるログブロック */
+        .petal-block {
+            transition: opacity 0.8s ease;
+        }
+        /* 終幕カーテン */
+        #curtainOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0);
+            z-index: 9999;
+            transition: background 2.5s ease;
+        }
+        #curtainText {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, 30px);
+            opacity: 0;
+            color: #e2e8f0;
+            font-size: 1.8em;
+            font-weight: 300;
+            letter-spacing: 0.3em;
+            font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+            transition: opacity 2s ease, transform 2s ease;
+            pointer-events: none;
         }
         .reasoning-item {
             background: rgba(255, 255, 255, 0.04);
@@ -393,15 +421,31 @@
         </div>
 
         <div id="stepContainer"></div>
-                </div>
+    </div>
+
+    <!-- 終幕カーテン -->
+    <div id="curtainOverlay">
+        <div id="curtainText">幕を引く。</div>
+    </div>
     
     <script>
+        // 散華の構造: 30枚の花びらに対応する詩的テキスト
+        const PETAL_TEXTS = [
+            "静寂を割った",     "影に重なった",     "光を曲げた",       "枝に触れた",       "冷気を連れた",
+            "においを運んだ",   "指先を止めた",     "重さを置いた",     "息を潜めた",       "空白を埋めた",
+            "輪郭を溶かした",   "吐息と交わった",   "温もりに触れた",   "影を引いた",       "時間を止めた",
+            "首の角度を変えた", "肩に触れた",       "静寂を深めた",     "空を遠ざけた",     "皮膚に残った",
+            "風を止めた",       "重力に沈んだ",     "月を隠した",       "鼻腔を通った",     "ここと思わせた",
+            "指先を緩めた",     "影になった",       "輪郭が溶けた",     "記憶になった",     "静寂に帰った"
+        ];
+
         let stepsData = [];
         let directoryHandle = null;
         let imageFiles = new Map(); // ステップ番号 -> Fileオブジェクト
         let reasoningMap = new Map(); // ステップ番号 -> [{id, memory, reasoning}, ...]
         let messagesLog = []; // 追記型ログ：index -> HTML文字列
         let reasoningLog = []; // 追記型ログ：index -> HTML文字列
+        let curtainShown = false; // 終幕カーテン表示フラグ
         
         // ディレクトリを選択
         async function selectDirectory() {
@@ -691,8 +735,10 @@
 
             // ステップ区切り＋内容（何もなければ区切りも出さない）
             const blockContent = stepMessagesHtml + innerVoiceHtml;
+            const petalIdx = Math.min(stepData.step - 1, PETAL_TEXTS.length - 1);
+            const petalLabel = `${stepData.step}枚目の花びらが、${PETAL_TEXTS[petalIdx]}。`;
             const messagesHtml = blockContent
-                ? `<div class="step-divider">— Step ${stepData.step} —</div>${blockContent}`
+                ? `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${blockContent}</div>`
                 : '';
 
             // Build reasoning HTML for this step
@@ -714,7 +760,7 @@
                 });
             }
             const reasoningHtml = stepReasoningHtml
-                ? `<div class="step-divider">— Step ${stepData.step} —</div>${stepReasoningHtml}`
+                ? `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${stepReasoningHtml}</div>`
                 : '';
 
             // 追記型ログに保存（スライダーで戻った場合は以降を破棄して再構築）
@@ -770,6 +816,8 @@
             const reasoningContent = stepContainer.querySelector('.reasoning-content');
             messagesContent.innerHTML = messagesLog.join('');
             reasoningContent.innerHTML = reasoningLog.join('');
+            // 散華の構造: 古いブロックを薄くする
+            updatePetalOpacities();
             // 自動で一番下までスクロール
             if (messagesPanel) messagesPanel.scrollTop = messagesPanel.scrollHeight;
             if (reasoningPanel) reasoningPanel.scrollTop = reasoningPanel.scrollHeight;
@@ -813,6 +861,51 @@
                 totalStepsSpan.textContent = stepsData.length;
             }
             stepSlider.value = index;
+
+            // 終幕演出: 最終ステップで幕を引く
+            if (index === stepsData.length - 1) {
+                setTimeout(triggerCurtain, 800);
+            } else {
+                hideCurtain();
+            }
+        }
+
+        // 散華の構造: 古いブロックを薄くする
+        function updatePetalOpacities() {
+            stepContainer.querySelectorAll('.panel-section').forEach(panel => {
+                const blocks = panel.querySelectorAll('.petal-block');
+                const total = blocks.length;
+                blocks.forEach((block, i) => {
+                    const distance = (total - 1) - i; // 0 = 最新
+                    const opacity = Math.max(0.15, 1.0 - distance * 0.17);
+                    block.style.opacity = opacity;
+                });
+            });
+        }
+
+        // 終幕カーテン
+        function triggerCurtain() {
+            if (curtainShown) return;
+            curtainShown = true;
+            const overlay = document.getElementById('curtainOverlay');
+            const text = document.getElementById('curtainText');
+            overlay.style.display = 'block';
+            setTimeout(() => { overlay.style.background = 'rgba(0, 0, 0, 0.88)'; }, 30);
+            setTimeout(() => {
+                text.style.opacity = '1';
+                text.style.transform = 'translate(-50%, -50%)';
+            }, 1600);
+        }
+
+        function hideCurtain() {
+            if (!curtainShown) return;
+            curtainShown = false;
+            const overlay = document.getElementById('curtainOverlay');
+            const text = document.getElementById('curtainText');
+            overlay.style.background = 'rgba(0, 0, 0, 0)';
+            text.style.opacity = '0';
+            text.style.transform = 'translate(-50%, 30px)';
+            setTimeout(() => { overlay.style.display = 'none'; }, 2500);
         }
         
         function escapeHtml(text) {
