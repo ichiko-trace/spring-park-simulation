@@ -413,6 +413,7 @@ class Agent:
                 forced_gesture = "舞い落ちる花びらの軌道を、首の角度だけで追う。"
                 alt_gestures = "「髪に花が絡まるまま、視線だけを落とす。」「肩、おちる。」"
             memory_instruction = forced_gesture
+            self._last_forced_gesture = forced_gesture  # フォールバック用に保存
             memory_override_section = (
                 f"\n【所作】memoryに必ず次の1文を書け（空欄厳禁）：「{forced_gesture}」\n"
                 f"または：{alt_gestures}\n"
@@ -608,6 +609,10 @@ class Agent:
         reasoning = re.sub(r'空気中[^\n]*', '', reasoning)
         # 【Phase 24】日本語の「囁いた」「つぶやいた」等の演技的語尾も封印
         reasoning = re.sub(r'[^。\n]*(囁いた|つぶやいた|漏らした)[。]?', '', reasoning)
+        # 【Phase 25】JSONラベルの連鎖漏出（「【action】 stay 【memory】〜【reasoning】〜」）
+        reasoning = re.sub(r'【action】[^\n]*', '', reasoning)
+        reasoning = re.sub(r'【memory】[^\n]*', '', reasoning)
+        reasoning = re.sub(r'\bstay\b[^\n]*', '', reasoning, flags=re.IGNORECASE)
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
@@ -782,6 +787,9 @@ class Agent:
                     memory = self._clean_memory(parsed.get("memory", ""))
                 except Exception:
                     pass
+            # 【Phase 25】モデルがmemoryを空にした場合、forced_gestureを直接注入
+            if not memory:
+                memory = getattr(self, '_last_forced_gesture', "花びら、落ちる。")
             return {"action": "stay", "direction": None, "memory": memory, "reasoning": ""}
 
         # Try to extract JSON from response using brace-matching
