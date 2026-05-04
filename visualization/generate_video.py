@@ -304,7 +304,7 @@ def main():
     parser.add_argument("data_dir", type=str, help="データディレクトリのパス")
     parser.add_argument("-o", "--output", type=str, default=None,
                         help="出力MP4ファイル名 (デフォルト: <data_dir>/simulation.mp4)")
-    parser.add_argument("--fps", type=int, default=10,
+    parser.add_argument("--fps", type=float, default=10,
                         help="フレームレート (デフォルト: 10)")
     parser.add_argument("--dpi", type=int, default=150,
                         help="DPI (デフォルト: 150)")
