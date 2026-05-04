@@ -242,14 +242,15 @@ def draw_frame(fig, step_data: dict, total_steps: int):
             transform=ax.transAxes, va="top", ha="left")
 
     # メッセージ内容
+    AGENT_NAMES = {0: "いち子", 1: "犬", 2: "観測者", 3: "飼い主"}
     msg_lines = []
     messages = step_data.get("messages", [])
     for msg in messages:
-        from_a = msg.get("from", "?")
-        to_a = msg.get("to", "?")
+        from_a = AGENT_NAMES.get(msg.get("from", "?"), f'Agent {msg.get("from", "?")}')
+        to_a = AGENT_NAMES.get(msg.get("to", "?"), f'Agent {msg.get("to", "?")}')
         text = msg.get("message", "")
         reasoning = msg.get("reasoning", "")
-        msg_lines.append({"text": f"[Agent {from_a} → Agent {to_a}]", "underline": True})
+        msg_lines.append({"text": f"[{from_a} → {to_a}]", "underline": True})
         msg_lines.append({"text": f"会話: {text}"})
         if reasoning:
             msg_lines.append({"text": f"内省: {reasoning}"})
@@ -276,9 +277,10 @@ def draw_frame(fig, step_data: dict, total_steps: int):
     reasonings = step_data.get("reasonings", [])
     for r in reasonings:
         agent_id = r.get("id", "?")
+        agent_name = AGENT_NAMES.get(agent_id, f"Agent {agent_id}")
         reasoning = r.get("reasoning", "")
         memory = r.get("memory", "")
-        rea_lines.append({"text": f"[Agent {agent_id}]", "underline": True})
+        rea_lines.append({"text": f"[{agent_name}]", "underline": True})
         rea_lines.append({"text": f"理由: {reasoning}"})
         if memory:
             rea_lines.append({"text": f"記憶: {memory}"})
