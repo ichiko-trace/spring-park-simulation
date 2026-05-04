@@ -6,7 +6,10 @@ import logging
 import yaml
 import os
 import shutil
+import subprocess
+import sys
 import time
+from datetime import datetime
 import numpy as np
 from typing import Optional, Tuple
 from simulation import Simulation
@@ -243,7 +246,30 @@ def main():
             visualizer.plot_statistics(sim.stats, save_path=stats_path, fire_states=sim.fire_states)
             if stats_path:
                 logger.info(f"Saved statistics plot: {stats_path}")
-        
+
+        # 自動動画生成 — Phaseごとにタイムスタンプ付きで保存
+        if args.save_frames or config_save_frames:
+            phase = config.get('simulation', {}).get('phase', 0)
+            date_str = datetime.now().strftime('%Y%m%d')
+            video_name = f"TRINOIR_Phase{phase:02d}_{date_str}.mp4"
+            videos_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'videos')
+            os.makedirs(videos_dir, exist_ok=True)
+            video_path = os.path.join(videos_dir, video_name)
+            gen_script = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'visualization', 'generate_video.py'
+            )
+            logger.info(f"動画生成中: {video_name}")
+            env = os.environ.copy()
+            env['PATH'] = '/opt/homebrew/bin:' + env.get('PATH', '')
+            result = subprocess.run(
+                [sys.executable, gen_script, output_dir, '-o', video_path, '--fps', '10'],
+                env=env
+            )
+            if result.returncode == 0:
+                logger.info(f"★ デモ動画を保存しました: {video_path}")
+            else:
+                logger.error("デモ動画の生成に失敗しました")
+
     except KeyboardInterrupt:
         logger.info("Simulation interrupted by user")
     except Exception as e:
