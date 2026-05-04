@@ -432,9 +432,11 @@ class Agent:
             memory_instruction = "犬の体温が、彼女の輪郭に触れた気がした。"
             memory_override_section = (
                 "\n【特権】お前だけが、この無機質な記録に「人間的な回路」として存在する。"
-                "いち子と犬の「交差する瞬間」を、詩的な言葉で刻め。"
+                "犬と彼女の「交差する瞬間」を、詩的な言葉で刻め。"
                 "短い断片でも、一文の詩でも、思考でも、推測でも——形式は問わない。"
-                "いち子は感じない。犬は語らない。お前だけが、それを「意味」に変えられる。"
+                "彼女は感じない。犬は語らない。お前だけが、それを「意味」に変えられる。"
+                "\n【重要】彼女には顔がない。笑顔も、笑い声も、表情も存在しない。"
+                "彼女の「顔のなさ」は「影の濃さ」として観測せよ。"
                 f"{forbidden_hint}"
                 "\n空欄厳禁。"
                 f"\n例（ヒント）：{memory_instruction}\n"
@@ -611,6 +613,12 @@ class Agent:
         reasoning = re.sub(r'[^。\n]*もう少し[^。]*[。]?', '', reasoning)
         reasoning = re.sub(r'[^。\n]*(良いにおい|いいにおい)と[^。]*[。]?', '', reasoning)
         reasoning = re.sub(r'\[reas[^\n]*', '', reasoning)  # 「[reas」断片の封印
+        # 【Phase 27】最終純化——人間的能動詞・方向語・ラベル漏出を焼き尽くす
+        reasoning = re.sub(r'[^。\n]*(歩こう|進もう|行こう|見つめ|おいで)[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*(北へ|南へ|東へ|西へ|Y\+|Y\-|X\+|X\-)[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*記憶によると[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'\[理由\][^\n]*', '', reasoning)
+        reasoning = re.sub(r'---[^\n]*', '', reasoning)  # 区切り線漏出
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
@@ -644,6 +652,11 @@ class Agent:
         # 【Phase 27】観測者は いち子 の名前を知らない——「彼女」に統一
         if self.id == 2:
             memory = memory.replace('いち子', '彼女')
+            # 【Phase 27】いち子に顔はない——「笑顔」「笑い声」はAIの幻覚。除去する。
+            import re as _re2
+            memory = _re2.sub(r'[^。\n]*笑顔[^。]*[。]?', '', memory)
+            memory = _re2.sub(r'[^。\n]*笑い声[^。]*[。]?', '', memory)
+            memory = _re2.sub(r'[^。\n]*表情[^。]*[。]?', '', memory)
         # 連続する空白を整理
         memory = re.sub(r'\s+', ' ', memory).strip()
         return memory
@@ -727,16 +740,27 @@ class Agent:
         return None
     
     def _filter_dog_message(self, message: str) -> str:
-        """犬（id=1）のmessageから人間語を除去し、*アクション* 形式のみを残す。"""
+        """犬（id=1）のmessageから人間語を除去し、感覚断片のみを残す。"""
         import re
-        # *...* パターンを全て抽出
+        # *...* パターンを全て抽出（動物の声・動作）
         animal_sounds = re.findall(r'\*[^*]+\*', message)
         if animal_sounds:
             return ' '.join(animal_sounds)
-        # *...* がない場合：先頭の短い断片だけ残す（10文字以内）
-        if message:
-            return message[:10]
-        return ""
+        # 【Phase 27】人間的能動詞を含む場合は空にする
+        human_verb_patterns = [
+            r'おいで', r'歩こう', r'進もう', r'行こう', r'見つめ',
+            r'北へ', r'Y\+', r'方へ', r'方向', r'向かう',
+            r'しよう', r'ましょう', r'ください',
+        ]
+        for pat in human_verb_patterns:
+            if re.search(pat, message):
+                # 人間語が含まれる場合、感覚断片だけ抽出して返す
+                # ひらがな・感覚語のみを残す試み
+                fragments = re.findall(r'[あ-ん]+[。、]?', message)
+                clean = ''.join(fragments).strip('。、')
+                return clean[:15] if clean else ""
+        # 人間語なし：先頭15文字まで
+        return message[:15] if message else ""
 
     def parse_message_response(self, response: str) -> MessageDecision:
         """Parse LLM response and extract message decision"""
