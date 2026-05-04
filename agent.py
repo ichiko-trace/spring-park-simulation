@@ -294,11 +294,27 @@ class Agent:
         silence_ratio = max(0.0, 1.0 - len(nearby_agents) / max(1, self.num_agents))
         silence = silence_levels[min(3, int(silence_ratio * 4))]
 
+        # 【Phase 22】犬（id=1）→ いち子からの温もりを感知
+        warmth_line = ""
+        if self.id == 1:
+            ichiko = next((a for a in nearby_agents if a.id == 0), None)
+            if ichiko:
+                dxw = self.position[0] - ichiko.position[0]
+                dyw = self.position[1] - ichiko.position[1]
+                dist_w = math.sqrt(dxw * dxw + dyw * dyw)
+                w_proximity = max(0.0, 1.0 - dist_w / max_dist)
+                warmth_levels = ["感じない", "微かに温かい", "温かい", "包まれる"]
+                warmth = warmth_levels[min(3, int(w_proximity * 4))]
+                warmth_line = f"温もりの感覚: {warmth}\n"
+            else:
+                warmth_line = "温もりの感覚: 感じない\n"
+
         return (
             f"=== 感覚的な物理量 ===\n"
             f"匂いの強さ: {scent}\n"
             f"気温の低さ: {cold}\n"
             f"静寂の密度: {silence}\n"
+            f"{warmth_line}"
         )
 
     def create_decision_prompt(
@@ -350,31 +366,35 @@ class Agent:
         if message_to_send:
             message_section = f"\n=== 送信予定のメッセージ ===\n{message_to_send}\n"
 
-        # 【Phase 20】動機の埋め込み（犬・いち子のみ）
+        # 【Phase 22】動機の埋め込み（犬・いち子のみ）
         if self.id == 1:
             motivation_section = (
-                "\n【本能的動機】世界には『何か』がある。"
-                "匂いや静けさに導かれ、そこへ向かいたいという本能的な好奇心を持て。\n"
+                "\n【野生の感覚】お前は匂いと温度と温もりだけで動く。"
+                "3語以内のひらがなで感じろ。論理・分析・因果関係の言語化は絶対禁止。"
+                "「あたたかい」「においがする」「ここ、いい」——感じたことだけを出力せよ。\n"
             )
         elif self.id == 0:
             motivation_section = (
-                "\n【存在の意味】あなたの背中は、公園全体の『静寂の貯蔵庫』である。"
-                "あなたがそこにいるだけで、世界は沈黙を受け入れる。\n"
+                "\n【存在の物理】あなたは『公園の悲しみを吸い込む重力場』である。"
+                "犬が近づいた時、あなたは考えない。"
+                "ただ、温もりを受け入れるように、身体がわずかに反応する。"
+                "その物理変化だけを[所作: ...]の形式でmemoryに出力せよ。\n"
             )
         else:
             motivation_section = ""
 
         # エージェントごとにmemoryの役割を定義
         if self.id == 0:
-            # 【Phase 18】6語ローテーション：固着を防ぎ所作の多様性を生む
+            # 【Phase 22】6語ローテーション：[所作: ...]形式で身体的所作を固着防止
             _ichiko_rotation = [
-                "目を伏せる。", "髪、揺れる。", "まぶた、しずむ。",
-                "肩、おちる。", "指先、止まる。", "背、かがむ。",
+                "[所作: 目を伏せる。]", "[所作: 髪、揺れる。]", "[所作: まぶた、しずむ。]",
+                "[所作: 肩、おちる。]", "[所作: 指先、止まる。]", "[所作: 背、かがむ。]",
             ]
             memory_instruction = _ichiko_rotation[step % len(_ichiko_rotation)]
             memory_override_section = (
-                "\n【重要】「memory」フィールドに、外から見える体の変化だけを2〜3語で書け。空欄禁止。"
-                "例：目を伏せる。髪、揺れる。まぶた、しずむ。肩、おちる。指先、止まる。背、かがむ。\n"
+                "\n【所作の記録】「memory」フィールドに、[所作: ...]の形式で"
+                "外から見える身体の物理変化だけを書け。空欄禁止。内面・思考・感情は一切禁止。"
+                f"\n例（ヒント）：{memory_instruction}\n"
             )
         elif self.id == 2:
             # 【Phase 20/21】観測者の役割：「記録するな、発見せよ」＋前ステップ禁止
@@ -547,6 +567,16 @@ class Agent:
         reasoning = re.sub(r'\b(up|down|left|right|move)\b', '', reasoning, flags=re.IGNORECASE)
         # 【Phase 21】「おいで」短縮形の除去（「おいでよ」はPhase 19で対応済み）
         reasoning = re.sub(r'おいで[よ]?[。]?', '', reasoning)
+        # 【Phase 22】物語的説明・論理的因果関係・AI気遣いの完全除去
+        reasoning = re.sub(r'[^。\n]*のようだ[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*ようです[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*かもしれません[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*と思われ[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*助長[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*(なぜなら|そのため|したがって|ゆえに)[^。]*[。]?', '', reasoning)
+        # 【Phase 22】指示文漏出の新パターン（Phase 21残存汚染）
+        reasoning = re.sub(r'においや温度を感じた瞬間[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'または stay \[direction\][^\n]*', '', reasoning)
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
