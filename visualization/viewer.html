@@ -688,17 +688,18 @@
             const stepData = stepsData[index];
             currentIndex = index;
 
-            // Build messages HTML for this step（空エントリは無言の間として何も出さない）
+            const agentNames = {0: 'いち子', 1: '犬', 2: '観測者', 3: '飼い主'};
+            const petalIdx = Math.min(stepData.step - 1, PETAL_TEXTS.length - 1);
+            const petalLabel = `${stepData.step}枚目の花びらが、${PETAL_TEXTS[petalIdx]}。`;
+
+            // 会話ログ：messageのみ（内省💭は削除）
             let stepMessagesHtml = '';
             if (stepData.messages && stepData.messages.length > 0) {
                 stepData.messages.forEach((msg) => {
-                    const agentNames = {0: 'いち子', 1: '犬', 2: '観測者', 3: '飼い主'};
-                    const fromAgent = agentNames[msg.from] || `エージェント ${msg.from}`;
-                    const toAgent = msg.to === -1 ? '（独白）' : (agentNames[msg.to] || `エージェント ${msg.to}`);
-                    const messageText = msg.message || '';
-                    const reasoning = msg.reasoning || '';
-                    // messageもreasoningも空なら出力しない
-                    if (!messageText && !reasoning) return;
+                    const messageText = (msg.message || '').trim();
+                    if (!messageText) return;
+                    const fromAgent = agentNames[msg.from] || `Agent ${msg.from}`;
+                    const toAgent = msg.to === -1 ? '（独白）' : (agentNames[msg.to] || `Agent ${msg.to}`);
                     stepMessagesHtml += `
                     <div class="message-item">
                         <div class="message-header">
@@ -708,44 +709,35 @@
                                 <span class="agent-to">${escapeHtml(toAgent)}</span>
                             </div>
                         </div>
-                        ${messageText ? `<div class="message-text">会話：${escapeHtml(messageText)}</div>` : ''}
-                        ${reasoning ? `<div class="reasoning">内省💭：${escapeHtml(reasoning)}</div>` : ''}
-                    </div>
-                    `;
-                });
-            }
-            // 心の声（reasoning）をメインログにインライン統合
-            let innerVoiceHtml = '';
-            if (stepData.reasonings && stepData.reasonings.length > 0) {
-                stepData.reasonings.forEach(r => {
-                    const agentNames = {0: 'いち子', 1: '犬', 2: '観測者', 3: '飼い主'};
-                    const agentName = agentNames[r.id] || `Agent ${r.id}`;
-                    const reasoning = (r.reasoning || '').trim();
-                    const memory = (r.memory || '').trim();
-                    // reasoning または memory があれば心の声として表示
-                    const voiceText = reasoning || memory;
-                    if (!voiceText) return;
-                    innerVoiceHtml += `
-                    <div class="inner-voice-item">
-                        <div class="inner-voice-agent">${escapeHtml(agentName)} ／ 心の声</div>
-                        <div class="inner-voice-text">${escapeHtml(voiceText)}</div>
+                        <div class="message-text">${escapeHtml(messageText)}</div>
                     </div>`;
                 });
             }
 
-            // ステップ区切り＋内容（何もなければ区切りも出さない）
-            const blockContent = stepMessagesHtml + innerVoiceHtml;
-            const petalIdx = Math.min(stepData.step - 1, PETAL_TEXTS.length - 1);
-            const petalLabel = `${stepData.step}枚目の花びらが、${PETAL_TEXTS[petalIdx]}。`;
-            const messagesHtml = blockContent
-                ? `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${blockContent}</div>`
-                : '';
+            // 心の声・動作：memory_reasoning.jsonlから（reasoning=心の声, memory=動作）
+            let innerVoiceHtml = '';
+            if (stepData.reasonings && stepData.reasonings.length > 0) {
+                stepData.reasonings.forEach(r => {
+                    const agentName = agentNames[r.id] || `Agent ${r.id}`;
+                    const reasoning = (r.reasoning || '').trim();
+                    const memory = (r.memory || '').trim();
+                    if (!reasoning && !memory) return;
+                    innerVoiceHtml += `<div class="inner-voice-item">
+                        <div class="inner-voice-agent">${escapeHtml(agentName)}</div>
+                        ${reasoning ? `<div class="inner-voice-text">心の声：${escapeHtml(reasoning)}</div>` : ''}
+                        ${memory ? `<div class="inner-voice-text" style="color:#c4b5fd;">動作：${escapeHtml(memory)}</div>` : ''}
+                    </div>`;
+                });
+            }
 
-            // Build reasoning HTML for this step
+            // 花びらは全30ステップ必ず落ちる（中身が空でも表示）
+            const blockContent = stepMessagesHtml + innerVoiceHtml;
+            const messagesHtml = `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${blockContent}</div>`;
+
+            // 右下パネル（Action Reasoning）も同様に更新
             let stepReasoningHtml = '';
             if (stepData.reasonings && stepData.reasonings.length > 0) {
                 stepData.reasonings.forEach(r => {
-                    const agentNames = {0: 'いち子', 1: '犬', 2: '観測者', 3: '飼い主'};
                     const agentName = agentNames[r.id] || `Agent ${r.id}`;
                     const reasoning = r.reasoning || '';
                     const memory = r.memory || '';
@@ -753,15 +745,12 @@
                     stepReasoningHtml += `
                     <div class="reasoning-item">
                         <div class="agent-id">${escapeHtml(agentName)}</div>
-                        ${reasoning ? `<div class="reasoning-text">${escapeHtml(reasoning)}</div>` : ''}
-                        ${memory ? `<div class="memory-text">Memory: ${escapeHtml(memory)}</div>` : ''}
-                    </div>
-                    `;
+                        ${reasoning ? `<div class="reasoning-text">心の声：${escapeHtml(reasoning)}</div>` : ''}
+                        ${memory ? `<div class="memory-text">動作：${escapeHtml(memory)}</div>` : ''}
+                    </div>`;
                 });
             }
-            const reasoningHtml = stepReasoningHtml
-                ? `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${stepReasoningHtml}</div>`
-                : '';
+            const reasoningHtml = `<div class="petal-block"><div class="step-divider">${petalLabel}</div>${stepReasoningHtml}</div>`;
 
             // 追記型ログに保存（スライダーで戻った場合は以降を破棄して再構築）
             messagesLog[index] = messagesHtml;
