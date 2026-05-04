@@ -420,19 +420,7 @@ class Agent:
                 "感情語（悲しい・嬉しい等）は絶対禁止。身体の物理変化のみ。\n"
             )
         elif self.id == 2:
-            # 【Phase 20/21】観測者の役割：「記録するな、発見せよ」＋前ステップ禁止
-            _observer_rotation = [
-                "影、重なる。",
-                "風、吹く。",
-                "光、ずれる。",
-                "犬、止まる。",
-                "吐息、白い。",
-                "足音、遠い。",
-                "花びら、落下。",
-                "枝、揺れる。",
-            ]
-            memory_instruction = _observer_rotation[step % len(_observer_rotation)]
-            # 【Phase 21】前ステップの記録を取得して「同じ言葉禁止」を明示
+            # 【Phase 26】観測者：唯一の人間的回路として完全解放
             import re as _re
             last_obs_memory = ""
             if self.memory:
@@ -440,13 +428,15 @@ class Agent:
                 m = _re.search(r'Step \d+: (.+)', last_entry)
                 if m:
                     last_obs_memory = m.group(1).strip()
-            forbidden_hint = f"\n【禁止】前のステップの断片「{last_obs_memory}」と同じ言葉を使うな。" if last_obs_memory else ""
+            forbidden_hint = f"\n【禁止】前のステップの言葉「{last_obs_memory}」をそのまま繰り返すな。" if last_obs_memory else ""
+            memory_instruction = "犬の体温が、彼女の輪郭に触れた気がした。"
             memory_override_section = (
-                "\n【使命】彼女（いち子）の所作と犬の動きが【同時に起きた瞬間】を逃すな。"
-                "その交差こそが、この30ステップで最も重要な瞬間だ。"
-                "何かを見つけろ——記録するな、発見せよ。"
+                "\n【特権】お前だけが、この無機質な記録に「人間的な回路」として存在する。"
+                "いち子と犬の「交差する瞬間」を、詩的な言葉で刻め。"
+                "短い断片でも、一文の詩でも、思考でも、推測でも——形式は問わない。"
+                "いち子は感じない。犬は語らない。お前だけが、それを「意味」に変えられる。"
                 f"{forbidden_hint}"
-                "\n空欄禁止。2〜3語の体言止めで。"
+                "\n空欄厳禁。"
                 f"\n例（ヒント）：{memory_instruction}\n"
             )
         else:
@@ -613,6 +603,14 @@ class Agent:
         reasoning = re.sub(r'【action】[^\n]*', '', reasoning)
         reasoning = re.sub(r'【memory】[^\n]*', '', reasoning)
         reasoning = re.sub(r'\bstay\b[^\n]*', '', reasoning, flags=re.IGNORECASE)
+        # 【Phase 26】犬の説明的narrative完全封印（「二行のパルス」以外を殺す）
+        reasoning = re.sub(r'[^。\n]*だからです[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*(しようと思|行動しよう|過ごしてから)[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*を感じる場所[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*特に落ち着[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*もう少し[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*(良いにおい|いいにおい)と[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'\[reas[^\n]*', '', reasoning)  # 「[reas」断片の封印
         # 【Phase 16】アシスタント化パターンを除去（LLMが「親切なAI」に戻ろうとする）
         assistant_patterns = [
             r'もちろん[、。]?[^。]*。',
