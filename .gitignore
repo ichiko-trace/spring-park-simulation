@@ -1,6 +1,9 @@
 output/
 output_test/
+output_phase*/
+videos/
 __pycache__/
 *.pyc
 *.log
 .DS_Store
+.claude/

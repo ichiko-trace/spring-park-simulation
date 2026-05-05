@@ -129,6 +129,8 @@ class Simulation:
         self.agents: List[Agent] = []
         self.step = 0
         self.history: List[Dict] = []
+        # 【Phase 39】いち子と犬の交差瞬間を記録（座標が重なったステップ）
+        self.crossing_moments: List[Dict] = []
         
         # Statistics - track per place
         self.stats = {
@@ -394,6 +396,7 @@ class Simulation:
             'woman', 'girl', 'figure', 'silhouette', 'her', 'she', 'face', 'eyes',
             'beautiful', 'lonely', 'sad', 'rain', 'wet', 'body', 'human', 'person',
             'camera', 'lens', 'shot',
+            'いち子',  # 【Phase 40】日本語名の英文プロンプト漏出を禁止
         ]
         text_lower = text.lower()
         for word in forbidden:
@@ -444,12 +447,29 @@ class Simulation:
         dog_text = "\n".join(dog_pulses) or "（沈黙。）"
         ichiko_text = "\n".join(ichiko_gestures) or "（不動。）"
 
+        # 【Phase 39】交差瞬間データを注入
+        crossing_text = "（交差なし——犬は近づいたが触れなかった。）"
+        if self.crossing_moments:
+            first = self.crossing_moments[0]
+            last = self.crossing_moments[-1]
+            crossing_text = (
+                f"交差記録: 全{len(self.crossing_moments)}ステップで重なりが発生。\n"
+                f"最初の交差: Step {first['step']} (距離={first['distance']})\n"
+                f"最後の交差: Step {last['step']} (距離={last['distance']})\n"
+                f"— この瞬間、いち子の所作と犬の感覚が同じ座標で起きた。"
+            )
+
         # ── 4枚の画像プロンプト生成プロンプト（Phase 23: 絵巻物・二者の交差）──
         prompt = f"""You are a cinematographer. Do NOT create a story. Do NOT create drama.
 
 Compile the raw physical data below into 4 cinematic image prompts —
 a single emakimono (picture scroll) recording the passage of light, shadow, and temperature
 across 30 steps. No narrative. No emotion. Only phenomena.
+
+=== The Axis: Cherry Petals ===
+Cherry blossoms fall continuously through ALL 30 steps. They are NOT background.
+They are the physical clock of this world — each petal is a second dissolving.
+Every prompt MUST include the physical presence of falling petals.
 
 === Observer's Field Notes (bench, stationary) ===
 {observer_text}
@@ -459,6 +479,9 @@ across 30 steps. No narrative. No emotion. Only phenomena.
 
 === いち子's Physical Gestures ===
 {ichiko_text}
+
+=== Crossing Moment (physical overlap of the two presences) ===
+{crossing_text}
 
 === The Central Phenomenon (ABSOLUTE RULES — never violate) ===
 There is a presence beneath the cherry tree. It is NOT a person. It is a phenomenon — a dense,
@@ -484,28 +507,34 @@ DO NOT repeat the same phrase across different ACTs. Each ACT must end with a un
 
 === Your Task ===
 Create EXACTLY 4 cinematic image prompts in English — not a story, but a scroll of phenomena.
-Record only: the passage of light and shadow, the shift of temperature, the proximity of two presences.
-Draw from the gestures, pulses, and observations above. Let the viewer's mind create the meaning.
+Record only: the passage of light and shadow, the shift of temperature, the proximity of two presences,
+and the continuous fall of cherry petals as the physical axis of time.
+Draw from the gestures, pulses, crossing moment, and observations above.
+Let the viewer's mind create the meaning.
 
 [ACT 1 / 起 / The Weight Arrives]
   The dense phenomenon exists beneath the cherry tree, at the far edge of frame.
   The center is empty. The landscape has stopped at its boundary.
-  Draw from: the earliest observer notes.
+  Cherry petals begin to fall — the first petal marks the opening of time.
+  Draw from: the earliest observer notes and いち子's first gestures.
 
 [ACT 2 / 承 / The Wild Approaches]
   A dog moves northward by instinct. Cold scent. An unnamed pull.
   It approaches the edge of the frame where the density waits.
-  Draw from: dog's sensory pulses.
+  Petals accumulate. The temperature shifts.
+  Draw from: dog's sensory pulses and middle gestures.
 
-[ACT 3 / 転 / Proximity Without Contact]
-  Two densities occupy the same frame without touching.
-  OR: a third presence enters — a voice, a sound, a disturbance at the frame's far edge.
-  Draw from: middle observer notes. No drama. Only physics.
+[ACT 3 / 転 / The Crossing]
+  {crossing_text}
+  Two densities occupy the same coordinates. A fingertip and a warmth arrive at the same point.
+  This is not contact. This is the boundary dissolving at one edge only.
+  Petals fall between them — the only witnesses.
+  Draw from: crossing moment data and middle observer notes.
 
 [ACT 4 / 結 / Dissolution]
-  Cherry petals fall. The boundary between the phenomenon and the air finally dissolves.
-  The frame empties. Only light and cold remain.
-  Draw from: final observer notes.
+  Cherry petals cover the ground. The boundary between the phenomenon and the air finally dissolves.
+  The frame empties. Only light, cold, and the last falling petal remain.
+  Draw from: final observer notes and いち子's last gesture.
 
 === Required Style (ALL 4 prompts) ===
 Cinematic 35mm photography, Yugen, Wabi-sabi, extreme silence, desaturated palette,
@@ -519,18 +548,21 @@ Japanese park, cherry blossom season. NO camera movement described.
 "花びら、落下。" → "a single petal drops at a rate too slow for wind to explain"
 Use at least ONE translated fragment per prompt.
 
-=== Output Format (exact) ===
+=== Output Format ===
+Write EXACTLY 4 blocks. Each block starts with the ACT header, followed immediately by
+the image prompt text (2-4 sentences). No placeholders. No labels inside the prompt.
+
 [ACT 1 / 起 / Weight]
-{{prompt}}
+<write the cinematic image prompt here — 2 to 4 sentences>
 
 [ACT 2 / 承 / Approach]
-{{prompt}}
+<write the cinematic image prompt here — 2 to 4 sentences>
 
 [ACT 3 / 転 / Proximity]
-{{prompt}}
+<write the cinematic image prompt here — 2 to 4 sentences>
 
 [ACT 4 / 結 / Dissolution]
-{{prompt}}
+<write the cinematic image prompt here — 2 to 4 sentences>
 """
 
         # ── Low-temperature generation with quality guard（最大3回）──────
@@ -547,6 +579,12 @@ Use at least ONE translated fragment per prompt.
                     timeout=600
                 )
                 result_text = self._kintsugi_filter(result_text)
+                # 【Phase 41】ACT1より前のアシスタント発言（"Certainly..."等）を除去
+                act1_idx = result_text.find('[ACT 1')
+                if act1_idx > 0:
+                    result_text = result_text[act1_idx:]
+                # 【Phase 42】フォーマット指示文「<write...>」がそのまま出力される問題を除去
+                result_text = re.sub(r'<write[^>]*>\n?', '', result_text)
 
                 valid, violations = self._validate_image_prompts(result_text)
                 if valid:
@@ -832,6 +870,24 @@ Use at least ONE translated fragment per prompt.
             self.stats['agents_in_fire_radius'].append(len(agents_in_any_fire))
         else:
             self.stats['agents_in_fire_radius'].append(0)
+
+        # 【Phase 39】いち子（id=0）と犬（id=1）の交差瞬間を検出・記録
+        ichiko = next((a for a in self.agents if a.id == 0), None)
+        dog = next((a for a in self.agents if a.id == 1), None)
+        if ichiko and dog:
+            dist = dog.distance_to(ichiko.position)
+            if dist <= 1.5:  # 同座標または隣接マス
+                crossing_entry = {
+                    'step': self.step,
+                    'distance': round(dist, 2),
+                    'ichiko_pos': ichiko.position,
+                    'dog_pos': dog.position,
+                }
+                self.crossing_moments.append(crossing_entry)
+                logger.info(
+                    "★ 交差検出 Step %d: いち子%s ← 犬%s (距離=%.2f)",
+                    self.step, ichiko.position, dog.position, dist
+                )
 
         # Store history
         self.history.append({

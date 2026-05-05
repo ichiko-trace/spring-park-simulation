@@ -631,6 +631,59 @@ class Agent:
         ]
         for pat in assistant_patterns:
             reasoning = re.sub(pat, '', reasoning)
+        # 【Phase 32】犬の論理文封印——動機付け・条件文・因果関係を除去
+        reasoning = re.sub(r'[^。\n]*たい[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*感じがする[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*動けるなら[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*から[。]?$', '', reasoning, flags=re.MULTILINE)
+        reasoning = re.sub(r'[^。\n]*ので[、，,][^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*の方が[^。]*[。]?', '', reasoning)
+        # 【Phase 34】犬・観測者のテンプレート漏出封印
+        reasoning = re.sub(r'[^。\n]*次はどこへ[^。\n]*[？?]?', '', reasoning)
+        reasoning = re.sub(r'\bみじかく\b', '', reasoning)
+        reasoning = re.sub(r'\*\*\s*:[^\n]*', '', reasoning)  # **:〜 の形式漏出
+        # 【Phase 35】単独「そ」断片の除去（「そちらへ」等がフィルターで削れた残骸）
+        reasoning = re.sub(r'(?<=[。\s])そ\s*[。]?(?=[。\s]|$)', '', reasoning)
+        reasoning = re.sub(r'^そ\s*[。]?$', '', reasoning, flags=re.MULTILINE)
+        # 【Phase 36】「ここにいると。」「〜いると。」文末断片の除去（フィルター削れ残骸）
+        reasoning = re.sub(r'[^。\n]*いると[。、，]?\s*$', '', reasoning, flags=re.MULTILINE)
+        reasoning = re.sub(r'[^。\n]*ここにいると[^。]*[。]?', '', reasoning)
+        # 【Phase 37】断片・プロンプト漏出の封印
+        reasoning = re.sub(r'(?<=[。\s])いいに[。\s]?(?=[。\s]|$)', '', reasoning)  # 「いいに。」断片
+        reasoning = re.sub(r'\[\]\s*[:：]?[^\n]*', '', reasoning)   # 「[]:」「【】」JSON/空括弧残渣
+        reasoning = re.sub(r'\*+\s*[:：][^\n]*', '', reasoning)    # 「*:〜」「**:〜」プロンプト漏出
+        reasoning = re.sub(r'【[^】]*】\s*', '', reasoning)  # 【〜】指示文・空括弧すべて
+        # 【Phase 39】「移動は今のところ不要です」等の論理判断文を封印
+        reasoning = re.sub(r'[^。\n]*移動は[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*不要[^。]*[。]?', '', reasoning)
+        # 【Phase 38】新汚染パターン封印
+        reasoning = re.sub(r'[^。\n]*べきか[^。]*[。]?', '', reasoning)   # 「べきか」論理断片
+        reasoning = re.sub(r'メッセージ\s*[:：][^\n]*', '', reasoning)    # 「メッセージ：」ラベル漏出
+        reasoning = re.sub(r'[^。\n]*という感覚に[^。]*[。]?', '', reasoning)  # 「という感覚に従う」論理文
+        reasoning = re.sub(r'^[。、，\s]+', '', reasoning)  # 文頭の句読点断片
+        reasoning = re.sub(r'[ぁ-ん]{10,}', '', reasoning)  # 意味不明な長いひらがな列
+        # 【Phase 30】中国語漏出検出——reasoningにも中国語が漏れることへの対処
+        if reasoning and re.search(r'[一-鿿]', reasoning):
+            chinese_chars = len(re.findall(r'[一-鿿]', reasoning))
+            if chinese_chars / max(len(reasoning), 1) > 0.3:
+                return ""
+        # 【Phase 30】英語語幹の除去（「あつ warmth.」「あつ warmth. つめたい。」等）
+        reasoning = re.sub(r'[a-zA-Z]+', '', reasoning)
+        # 【Phase 39】動詞断片「を選ぶ。」等の除去
+        reasoning = re.sub(r'[^。\n]*を選ぶ[^。]*[。]?', '', reasoning)
+        # 【Phase 40】「静かな。」（形容詞止め誤用）→「静かだ。」に正規化
+        reasoning = reasoning.replace('静かな。', '静かだ。')
+        # 【Phase 42】丁寧語・継続形の論理文を封印（犬は「です/ます/ている」で語らない）
+        reasoning = re.sub(r'[^。\n]*ここが[^。]*です[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*ここは[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*感じている[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*安らぎ[^。]*[。]?', '', reasoning)
+        # 【Phase 42】句点だけ残骸の除去
+        reasoning = re.sub(r'^[。\s]+$', '', reasoning, flags=re.MULTILINE)
+        # 【Phase 30】JSON断片の封印（「[action」「[」単独残渣 + 「{」ブレース残渣）
+        reasoning = re.sub(r'\[\s*(action|memory|reasoning|direction)?[^\]]*$', '', reasoning)
+        reasoning = re.sub(r'\{[^}]*$', '', reasoning)   # 【Phase 40】「{ "": "」等の開きブレース断片
+        reasoning = re.sub(r'_memory_\s*[:：][^\n]*', '', reasoning)
         # 連続する空白・改行を整理
         reasoning = re.sub(r'\s+', ' ', reasoning).strip()
         return reasoning
@@ -640,6 +693,16 @@ class Agent:
         Phase 15: qwen2.5:3bが「微動だvertisる」等の英語語幹を混入する問題を修正。
         """
         import re
+        # 【Phase 41】犬（id=1）はmemoryを持たない——ペルソナにmemory指示がなく、
+        # reasoningの3語が唯一の内的出力。memoryはフラットに空欄固定。
+        if self.id == 1:
+            return ""
+        # 【Phase 28】中国語漏出検出——qwen2.5:3bが感情的高まりで母語にスイッチする現象への対処
+        # 中国語が全体の30%以上を占める場合は空欄とみなす（フィルターで弾かれるより前に処理）
+        if memory and re.search(r'[一-鿿]', memory):
+            chinese_chars = len(re.findall(r'[一-鿿]', memory))
+            if chinese_chars / max(len(memory), 1) > 0.3:
+                return ""
         # 半角英字を除去（英語語幹の混入対策）
         memory = re.sub(r'[a-zA-Z]+', '', memory)
         # 【Phase 20】いち子のmemoryから「顔」関連語を除去（視覚定義：顔の不在）
@@ -652,11 +715,26 @@ class Agent:
         # 【Phase 27】観測者は いち子 の名前を知らない——「彼女」に統一
         if self.id == 2:
             memory = memory.replace('いち子', '彼女')
+            # 【Phase 42】「エージェント」禁止——ペルソナに明記された禁止語
+            memory = re.sub(r'[^。\n]*エージェント[^。]*[。]?', '', memory)
             # 【Phase 27】いち子に顔はない——「笑顔」「笑い声」はAIの幻覚。除去する。
             import re as _re2
             memory = _re2.sub(r'[^。\n]*笑顔[^。]*[。]?', '', memory)
             memory = _re2.sub(r'[^。\n]*笑い声[^。]*[。]?', '', memory)
             memory = _re2.sub(r'[^。\n]*表情[^。]*[。]?', '', memory)
+            # 【Phase 33】観測者memoryの繰り返し防止——直前と同じ文なら空欄にする
+            memory_clean = re.sub(r'\s+', ' ', memory).strip()
+            if memory_clean and memory_clean == getattr(self, '_last_observer_memory', ''):
+                return ''
+            if memory_clean:
+                self._last_observer_memory = memory_clean
+        # 【Phase 40】犬（id=1）の一人称自己物語を封印——「私は〜」「僕は〜」等
+        if self.id == 1:
+            memory = re.sub(r'[^。\n]*私は[^。]*[。]?', '', memory)
+            memory = re.sub(r'[^。\n]*僕は[^。]*[。]?', '', memory)
+            memory = re.sub(r'[^。\n]*俺は[^。]*[。]?', '', memory)
+        # 【Phase 39】先頭コロン・記号断片の除去（犬memoryに「: ここが〜」が漏出する問題）
+        memory = re.sub(r'^[\s:：、。]+', '', memory)
         # 連続する空白を整理
         memory = re.sub(r'\s+', ' ', memory).strip()
         return memory
@@ -822,11 +900,18 @@ class Agent:
         if json_str:
             try:
                 parsed = json.loads(json_str)
+                reasoning = self._purify_reasoning(parsed.get("reasoning", ""))
+                # 【Phase 36】犬（id=1）reasoning繰り返し防止——直前と同じなら空欄
+                if self.id == 1 and reasoning:
+                    if reasoning == getattr(self, '_last_dog_reasoning', ''):
+                        reasoning = ""
+                    else:
+                        self._last_dog_reasoning = reasoning
                 return {
                     "action": parsed.get("action", "stay"),
                     "direction": parsed.get("direction"),
-                    "memory": self._purify_reasoning(parsed.get("memory", "")),
-                    "reasoning": self._purify_reasoning(parsed.get("reasoning", ""))
+                    "memory": self._clean_memory(self._purify_reasoning(parsed.get("memory", ""))),
+                    "reasoning": reasoning
                 }
             except json.JSONDecodeError as e:
                 logger.debug(f"JSON parsing failed for response: {response[:100]}... Error: {e}")
@@ -840,12 +925,18 @@ class Agent:
             direction = self._extract_direction_from_text(response)
 
         # reasoning と memory をラベルから抽出。なければアクション行を除いた残りテキストを使う
-        memory = self._extract_labeled_field(response, "memory")
+        memory = self._clean_memory(self._extract_labeled_field(response, "memory") or "")
         reasoning = self._purify_reasoning(
             self._extract_labeled_field(response, "reasoning")
             or self._extract_labeled_field(response, "理由")
             or self._strip_action_lines(response)
         )
+        # 【Phase 37】犬（id=1）fallbackパスでもreasoning繰り返し防止
+        if self.id == 1 and reasoning:
+            if reasoning == getattr(self, '_last_dog_reasoning', ''):
+                reasoning = ""
+            else:
+                self._last_dog_reasoning = reasoning
 
         return {
             "action": action,

@@ -187,12 +187,11 @@ def main():
     # Determine visualization settings
     should_visualize, config_save_frames, frame_interval, output_dir = \
         determine_visualization_settings(args, config)
-    
-    # Remove output directory if it exists
-    if os.path.exists(output_dir):
-        logger.info(f"Removing existing output directory: {output_dir}")
-        shutil.rmtree(output_dir)
-    
+
+    # Phase番号をoutputディレクトリ名に含めて、Phaseごとにデータを保存する
+    phase = config.get('simulation', {}).get('phase', 0)
+    output_dir = f"output_phase{phase:02d}"
+
     # Create output directory if needed
     if args.save_frames or config_save_frames:
         os.makedirs(output_dir, exist_ok=True)
