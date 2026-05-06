@@ -84,7 +84,7 @@ simulation:
   half_place_size: 2
   half_space_size: 5
   script_generation_step: 29
-  phase: 42
+  phase: 44
 visualization:
   frame_interval: 1
   output_dir: output

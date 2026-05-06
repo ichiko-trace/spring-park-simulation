@@ -652,6 +652,8 @@ class Agent:
         reasoning = re.sub(r'(?<=[。\s])いいに[。\s]?(?=[。\s]|$)', '', reasoning)  # 「いいに。」断片
         reasoning = re.sub(r'\[\]\s*[:：]?[^\n]*', '', reasoning)   # 「[]:」「【】」JSON/空括弧残渣
         reasoning = re.sub(r'\*+\s*[:：][^\n]*', '', reasoning)    # 「*:〜」「**:〜」プロンプト漏出
+        reasoning = re.sub(r'\*+\s*$', '', reasoning)              # 【Phase 44】行末の「**」残骸
+        reasoning = re.sub(r'^\*+\s*', '', reasoning)              # 【Phase 44】行頭の「**」残骸
         reasoning = re.sub(r'【[^】]*】\s*', '', reasoning)  # 【〜】指示文・空括弧すべて
         # 【Phase 39】「移動は今のところ不要です」等の論理判断文を封印
         reasoning = re.sub(r'[^。\n]*移動は[^。]*[。]?', '', reasoning)
@@ -680,6 +682,12 @@ class Agent:
         reasoning = re.sub(r'[^。\n]*安らぎ[^。]*[。]?', '', reasoning)
         # 【Phase 42】句点だけ残骸の除去
         reasoning = re.sub(r'^[。\s]+$', '', reasoning, flags=re.MULTILINE)
+        # 【Phase 44】長い論理文の封印——「心地よい」「密度」「過去の記憶」「強化」等
+        reasoning = re.sub(r'[^。\n]*心地よい[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*密度[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*過去の記憶[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*強化[^。]*[。]?', '', reasoning)
+        reasoning = re.sub(r'[^。\n]*まだ[^。]*[。]?', '', reasoning)
         # 【Phase 30】JSON断片の封印（「[action」「[」単独残渣 + 「{」ブレース残渣）
         reasoning = re.sub(r'\[\s*(action|memory|reasoning|direction)?[^\]]*$', '', reasoning)
         reasoning = re.sub(r'\{[^}]*$', '', reasoning)   # 【Phase 40】「{ "": "」等の開きブレース断片
@@ -907,10 +915,16 @@ class Agent:
                         reasoning = ""
                     else:
                         self._last_dog_reasoning = reasoning
+                memory = self._clean_memory(self._purify_reasoning(parsed.get("memory", "")))
+                # 【Phase 43】観測者（id=2）：memoryが空でreasoningに詩があれば昇格
+                # 【Phase 44】昇格時も_clean_memory()を通す（表情等のフィルターをバイパスさせない）
+                if self.id == 2 and not memory and reasoning:
+                    memory = self._clean_memory(reasoning)
+                    reasoning = ""
                 return {
                     "action": parsed.get("action", "stay"),
                     "direction": parsed.get("direction"),
-                    "memory": self._clean_memory(self._purify_reasoning(parsed.get("memory", ""))),
+                    "memory": memory,
                     "reasoning": reasoning
                 }
             except json.JSONDecodeError as e:
@@ -937,6 +951,11 @@ class Agent:
                 reasoning = ""
             else:
                 self._last_dog_reasoning = reasoning
+        # 【Phase 43】観測者（id=2）fallbackパス：memoryが空でreasoningに詩があれば昇格
+        # 【Phase 44】昇格時も_clean_memory()を通す
+        if self.id == 2 and not memory and reasoning:
+            memory = self._clean_memory(reasoning)
+            reasoning = ""
 
         return {
             "action": action,
