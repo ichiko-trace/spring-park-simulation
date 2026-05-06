@@ -1,6 +1,10 @@
 output/
 output_test/
 output_phase*/
+!output_phase44/image_prompts.md
+!output_phase44/memory_reasoning.jsonl
+!output_phase44/messages.jsonl
+!output_phase44/statistics.png
 videos/
 __pycache__/
 *.pyc
